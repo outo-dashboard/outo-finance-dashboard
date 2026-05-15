@@ -1,34 +1,35 @@
 """
 data_loader.py
-- 從 Google Sheets 讀取 Outo Financial Dashboard 資料
-- 提供 fallback 用 mock data
-- 用 streamlit cache 加速
-"""
+從 Google Sheets CSV export URL 即時讀取 Outo Financial Dashboard 資料
 
+Real-time 串接：Sheet 設為 Anyone with link can view + Streamlit @st.cache_data(ttl=600) 每 10 分鐘 refresh
+Fallback：抓不到時改用 data/mock_data.json
+"""
+import io
 import json
-import os
-from datetime import datetime
 from pathlib import Path
 
+import pandas as pd
+import requests
 import streamlit as st
 
 
+SHEET_ID = "1-SQGXLw6ROXzIErBpGDXdJYRCOB6oAUAARDo6eeneJI"
+DASHBOARD_GID = 282172244
+CASHFLOW_GID = 290014235
+
+CSV_URL = "https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid={gid}"
+
 MONTHS_24 = [f"2024-{i:02d}" for i in range(1, 13)] + [f"2025-{i:02d}" for i in range(1, 13)]
 
-# Dashboard (Based on Trip End) 分頁要抓的 row
-DASHBOARD_ROWS = {
-    "revenue": 6,
-    "cogs": 16,
-    "gross_profit": 21,
-    "gross_margin": 22,
-    "operating_expenses": 58,
-}
+DASHBOARD_COLS = list(range(1, 13)) + list(range(15, 27))
 
-CASHFLOW_ROWS = {
-    "guolian_end": 8,
-    "outo_hk_end": 13,
-    "tanwan_end": 18,
-    "aotuo_end": 23,
+DASHBOARD_ROWS = {
+    "revenue": 5,
+    "cogs": 15,
+    "gross_profit": 20,
+    "gross_margin": 21,
+    "operating_expenses": 57,
 }
 
 ENTITY_LABELS = {
@@ -38,16 +39,18 @@ ENTITY_LABELS = {
     "aotuo_end": "奧拓旅行社 (台灣)",
 }
 
-# Dashboard 月份對應到欄位字母（B=2024-01, ..., M=2024-12, P=2025-01, ..., AA=2025-12）
-# 略過 N=2024 total, O=TREND
-DASHBOARD_COL_INDICES = list(range(2, 14)) + list(range(16, 28))
+CASHFLOW_ROWS = {
+    "guolian_end": 7,
+    "outo_hk_end": 12,
+    "tanwan_end": 17,
+    "aotuo_end": 22,
+}
+CASHFLOW_CURRENT_COL = 3
 
 
-def safe_float(v):
-    if v is None or v == "":
+def _safe_float(v):
+    if pd.isna(v) or v == "" or v is None:
         return 0.0
-    if isinstance(v, (int, float)):
-        return float(v)
     s = str(v).strip().replace(",", "").replace("%", "").replace("$", "")
     if s.startswith("#") or s == "":
         return 0.0
@@ -57,58 +60,56 @@ def safe_float(v):
         return 0.0
 
 
-@st.cache_data(ttl=3600)
-def load_from_sheets(sheet_id: str, credentials_path: str):
-    """從 Google Sheets 讀取，cache 1 小時"""
-    try:
-        import gspread
-        from google.oauth2.service_account import Credentials
-    except ImportError:
-        st.error("請安裝 `gspread` 跟 `google-auth`：pip install gspread google-auth")
-        return None
+@st.cache_data(ttl=600, show_spinner="🔄 從 Google Sheets 抓取最新資料...")
+def fetch_csv(gid):
+    url = CSV_URL.format(sheet_id=SHEET_ID, gid=gid)
+    resp = requests.get(url, timeout=15, allow_redirects=True)
+    resp.raise_for_status()
+    text = resp.text
+    if text.lstrip().lower().startswith("<!doctype html") or "<html" in text[:500].lower():
+        raise PermissionError("Sheet 不是公開的 — 請設定『任何擁有連結的人可檢視』")
+    return pd.read_csv(io.StringIO(text), header=None, dtype=str)
 
-    if not Path(credentials_path).exists():
-        return None
 
-    scopes = ["https://www.googleapis.com/auth/spreadsheets.readonly"]
-    creds = Credentials.from_service_account_file(credentials_path, scopes=scopes)
-    gc = gspread.authorize(creds)
-    sh = gc.open_by_key(sheet_id)
-
-    output = {"months": MONTHS_24, "dashboard": {}, "cashflow": {}}
-
-    ws = sh.worksheet("Dashboard (Based on Trip End)")
-    for key, row in DASHBOARD_ROWS.items():
-        row_values = ws.row_values(row)
-        output["dashboard"][key] = [
-            safe_float(row_values[i - 1]) if i - 1 < len(row_values) else 0.0
-            for i in DASHBOARD_COL_INDICES
-        ]
-
-    ws = sh.worksheet("Cash Flow")
-    for key, row in CASHFLOW_ROWS.items():
-        row_values = ws.row_values(row)
-        output["cashflow"][key] = [safe_float(v) for v in row_values]
-
-    return output
+def load_from_sheets():
+    dashboard_df = fetch_csv(DASHBOARD_GID)
+    cashflow_df = fetch_csv(CASHFLOW_GID)
+    dashboard = {}
+    for key, row_idx in DASHBOARD_ROWS.items():
+        if row_idx < len(dashboard_df):
+            row = dashboard_df.iloc[row_idx]
+            values = [_safe_float(row[c]) if c < len(row) else 0.0 for c in DASHBOARD_COLS]
+        else:
+            values = [0.0] * 24
+        dashboard[key] = values
+    cashflow = {}
+    for key, row_idx in CASHFLOW_ROWS.items():
+        if row_idx < len(cashflow_df):
+            row = cashflow_df.iloc[row_idx]
+            cashflow[key] = [_safe_float(row[CASHFLOW_CURRENT_COL])] if CASHFLOW_CURRENT_COL < len(row) else [0.0]
+        else:
+            cashflow[key] = [0.0]
+    return {"_source": "google_sheets_live", "months": MONTHS_24, "dashboard": dashboard, "cashflow": cashflow}
 
 
 @st.cache_data
 def load_mock():
-    """讀 mock_data.json (測試用)"""
     p = Path(__file__).parent.parent / "data" / "mock_data.json"
     if not p.exists():
         return None
-    return json.loads(p.read_text(encoding="utf-8"))
-
-
-def load_data(sheet_id: str = None, credentials_path: str = None, use_mock: bool = False):
-    """主要入口：依設定回傳資料 dict"""
-    if use_mock or not sheet_id or not credentials_path:
-        return load_mock()
-
-    data = load_from_sheets(sheet_id, credentials_path)
-    if data is None:
-        st.warning("⚠ Google Sheets 連線失敗，改用 mock data 顯示")
-        return load_mock()
+    data = json.loads(p.read_text(encoding="utf-8"))
+    data["_source"] = "mock_data.json (fallback)"
     return data
+
+
+def load_data(sheet_id=None, credentials_path=None, use_mock=False):
+    if use_mock:
+        return load_mock()
+    try:
+        return load_from_sheets()
+    except PermissionError as e:
+        st.warning(f"⚠ {e}。改用 mock 資料顯示")
+        return load_mock()
+    except Exception as e:
+        st.warning(f"⚠ Google Sheets 抓取失敗（{type(e).__name__}）。改用 mock 資料")
+        return load_mock()
