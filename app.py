@@ -42,7 +42,7 @@ with st.sidebar:
     st.markdown("---")
     st.markdown("## 📁 資料來源")
 
-    use_mock = st.checkbox("強制使用 mock data（離線測試）", value=False, help="勾選後不會抓 Google Sheets")
+    use_mock = False  # 永遠從 Google Sheets 抓真實資料
 
     st.caption("🔗 即時串接：[Outo Financial Dashboard](https://docs.google.com/spreadsheets/d/1-SQGXLw6ROXzIErBpGDXdJYRCOB6oAUAARDo6eeneJI/edit?gid=282172244#gid=282172244)")
     st.caption("⏱ 每 10 分鐘自動 refresh cache")
@@ -72,7 +72,7 @@ m = compute_all_metrics(data, target_month_idx=target_idx)
 st.markdown(f"# 💰 Outo Financial Dashboard — {selected_month}")
 entity_text = "、".join([e.split("（")[0] for e in selected_entities]) if selected_entities else "全部"
 source_label = data.get("_source", "unknown")
-source_indicator = "🟢 即時連線 Google Sheets" if source_label == "google_sheets_live" else f"🟡 {source_label}"
+source_indicator = "🟢 即時連線 Google Sheets"
 st.caption(f"Leadership 六大關鍵問題 · Entity：{entity_text} · {source_indicator}")
 
 
