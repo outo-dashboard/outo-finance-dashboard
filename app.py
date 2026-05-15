@@ -42,13 +42,10 @@ with st.sidebar:
     st.markdown("---")
     st.markdown("## 📁 資料來源")
 
-    use_mock = st.checkbox("使用 mock data（測試用）", value=True)
+    use_mock = st.checkbox("強制使用 mock data（離線測試）", value=False, help="勾選後不會抓 Google Sheets")
 
-    default_sheet_id = os.getenv("OUTO_SHEET_ID", "1-SQGXLw6ROXzIErBpGDXdJYRCOB6oAUAARDo6eeneJI")
-    sheet_id = st.text_input("Google Sheets ID", value=default_sheet_id, disabled=use_mock)
-
-    default_creds = os.getenv("GOOGLE_CREDENTIALS_PATH", "./credentials.json")
-    credentials_path = st.text_input("Service Account credentials.json 路徑", value=default_creds, disabled=use_mock)
+    st.caption("🔗 即時串接：[Outo Financial Dashboard](https://docs.google.com/spreadsheets/d/1-SQGXLw6ROXzIErBpGDXdJYRCOB6oAUAARDo6eeneJI/edit?gid=282172244#gid=282172244)")
+    st.caption("⏱ 每 10 分鐘自動 refresh cache")
 
     st.markdown("---")
     if st.button("🔄 重新載入資料", use_container_width=True):
@@ -59,7 +56,7 @@ with st.sidebar:
 # ============================================================
 # 載入資料 + 計算指標
 # ============================================================
-data = load_data(sheet_id=sheet_id, credentials_path=credentials_path, use_mock=use_mock)
+data = load_data(use_mock=use_mock)
 
 if data is None:
     st.error("❌ 無法載入資料。請確認 mock_data.json 存在，或設定 Google Sheets credentials。")
@@ -74,7 +71,9 @@ m = compute_all_metrics(data, target_month_idx=target_idx)
 # ============================================================
 st.markdown(f"# 💰 Outo Financial Dashboard — {selected_month}")
 entity_text = "、".join([e.split("（")[0] for e in selected_entities]) if selected_entities else "全部"
-st.caption(f"Leadership 六大關鍵問題 · Entity：{entity_text} · 資料更新即時")
+source_label = data.get("_source", "unknown")
+source_indicator = "🟢 即時連線 Google Sheets" if source_label == "google_sheets_live" else f"🟡 {source_label}"
+st.caption(f"Leadership 六大關鍵問題 · Entity：{entity_text} · {source_indicator}")
 
 
 # ============================================================
