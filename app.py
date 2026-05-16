@@ -76,27 +76,28 @@ tab1, tab2, tab3 = st.tabs(["📊 損益總覽", "🛒 訂單 & AR 分析", "�
 # ============================================================
 with tab1:
     k = m["kpi"]
-    cols = st.columns(6)
-    cols[0].metric(f"{selected_month} 月營收",
-                   f"NT$ {k['rev_latest']/10000:.0f} 萬",
-                   f"MoM {k['mom_pct']:+.1f}%")
-    cols[1].metric("月毛利 (EST)",
-                   f"NT$ {k['gp_latest']/10000:.0f} 萬",
-                   f"毛利率 {k['gm_latest']:.1f}%")
-    cols[2].metric("月毛利 (ACT)",
-                   f"NT$ {k['act_gp_latest']/10000:.0f} 萬" if k['act_gp_latest'] > 0 else "—",
-                   f"實際毛利率 {k['act_gm_latest']:.1f}%" if k['act_gm_latest'] > 0 else "2024 無 ACT 資料")
-    cols[3].metric("2025 YTD 累計營收",
-                   f"NT$ {k['ytd_2025']/100000000:.2f} 億",
-                   f"vs 2024：{k['ytd_yoy']:+.1f}%")
-    cols[4].metric("月 OPEX",
-                   f"NT$ {k['opex_latest']/10000:.0f} 萬",
-                   f"佔營收 {(k['opex_latest']/k['rev_latest']*100):.1f}%" if k['rev_latest'] else "—",
-                   delta_color="inverse")
-    cols[5].metric("月 EBIT",
-                   f"NT$ {k['ebit_latest']/10000:+.0f} 萬",
-                   "毛利 − OPEX",
-                   delta_color="off")
+    r1 = st.columns(3)
+    r1[0].metric(f"{selected_month} 月營收",
+                 f"NT$ {k['rev_latest']/10000:.0f} 萬",
+                 f"MoM {k['mom_pct']:+.1f}%")
+    r1[1].metric("月毛利 (EST)",
+                 f"NT$ {k['gp_latest']/10000:.0f} 萬",
+                 f"毛利率 {k['gm_latest']:.1f}%")
+    r1[2].metric("月毛利 (ACT)",
+                 f"NT$ {k['act_gp_latest']/10000:.0f} 萬" if k['act_gp_latest'] > 0 else "—",
+                 f"實際毛利率 {k['act_gm_latest']:.1f}%" if k['act_gm_latest'] > 0 else "2024 無 ACT 資料")
+    r2 = st.columns(3)
+    r2[0].metric("2025 YTD 累計營收",
+                 f"NT$ {k['ytd_2025']/100000000:.2f} 億",
+                 f"vs 2024：{k['ytd_yoy']:+.1f}%")
+    r2[1].metric("月 OPEX",
+                 f"NT$ {k['opex_latest']/10000:.0f} 萬",
+                 f"佔營收 {(k['opex_latest']/k['rev_latest']*100):.1f}%" if k['rev_latest'] else "—",
+                 delta_color="inverse")
+    r2[2].metric("月 EBIT",
+                 f"NT$ {k['ebit_latest']/10000:+.0f} 萬",
+                 "毛利 − OPEX",
+                 delta_color="off")
 
     st.markdown("---")
     st.markdown("### 📈 月度營收 / 銷貨成本 / 毛利率（24 個月）")
