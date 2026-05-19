@@ -33,10 +33,10 @@ with st.sidebar:
     st.markdown("## 📋 顯示內容")
     st.caption(
         "本儀表板只呈現 Google Sheets 上**完整且可驗證**的真實資料：\n\n"
-        "✓ 24 個月營收 / COGS / 毛利 / OPEX\n\n"
+        "✓ 27 個月營收 / COGS / 毛利 / OPEX（2024-01 ~ 2026-03）\n\n"
         "✓ 23 個月 Pivot Sales / GP / GM%\n\n"
         "✓ 訂單級 AR 預期收款明細\n\n"
-        "✓ 32 個產品 GM% 排名\n\n"
+        "✓ Top 10 產品 GM% 排名\n\n"
         "因資料不足而**未納入**：月度現金部位 trend、月度 AP balance、Runway 模擬"
     )
 
@@ -60,7 +60,7 @@ m = compute_metrics(data, month_idx=idx)
 # ============================================================
 st.markdown(f"# 💰 Outo Financial Dashboard")
 st.caption(
-    f"**{selected_month}** · 24 個月 trend · 資料同步：{data.get('fetched_at', 'unknown')[:10]} · "
+    f"**{selected_month}** · 27 個月 trend · 資料同步：{data.get('fetched_at', 'unknown')[:10]} · "
     f"🟢 Google Sheets 真實資料"
 )
 
@@ -87,9 +87,12 @@ with tab1:
                  f"NT$ {k['act_gp_latest']/10000:.0f} 萬" if k['act_gp_latest'] > 0 else "—",
                  f"實際毛利率 {k['act_gm_latest']:.1f}%" if k['act_gm_latest'] > 0 else "2024 無 ACT 資料")
     r2 = st.columns(3)
-    r2[0].metric("2025 YTD 累計營收",
-                 f"NT$ {k['ytd_2025']/100000000:.2f} 億",
-                 f"vs 2024：{k['ytd_yoy']:+.1f}%")
+    r2[0].metric(f"{k['selected_year']} YTD 累計營收（{k['selected_month_num']} 個月）",
+                 f"NT$ {k['ytd_curr_year']/100000000:.2f} 億"
+                 if k['ytd_curr_year'] >= 100000000
+                 else f"NT$ {k['ytd_curr_year']/10000:.0f} 萬",
+                 f"vs {k['prior_year']} 同期：{k['ytd_yoy_calc']:+.1f}%"
+                 if k['ytd_prior_year_same_period'] > 0 else "（無同期資料）")
     r2[1].metric("月 OPEX",
                  f"NT$ {k['opex_latest']/10000:.0f} 萬",
                  f"佔營收 {(k['opex_latest']/k['rev_latest']*100):.1f}%" if k['rev_latest'] else "—",
@@ -100,7 +103,7 @@ with tab1:
                  delta_color="off")
 
     st.markdown("---")
-    st.markdown("### 📈 月度營收 / 銷貨成本 / 毛利率（24 個月）")
+    st.markdown("### 📈 月度營收 / 銷貨成本 / 毛利率（27 個月）")
     st.caption("資料來源：Dashboard (Based on Trip End) Row 6 (REALIZED SALES) · Row 16 (ESTIMATED COST OF SALES) · Row 22 (EST. GROSS MARGIN)")
     st.plotly_chart(
         ch.chart_revenue_cogs_gp(m["months"], m["rev"], m["cogs"], m["gp"], m["gm"], idx=idx),
@@ -108,8 +111,16 @@ with tab1:
     )
 
     st.markdown("---")
-    st.markdown("### 📊 累計營業額 YTD：2024 vs 2025")
-    st.caption(f"YoY 成長：**{k['ytd_yoy']:+.1f}%**（2024 全年 {k['ytd_2024']/100000000:.2f} 億 → 2025 全年 {k['ytd_2025']/100000000:.2f} 億）")
+    st.markdown("### 📊 累計營業額 YTD：2024 / 2025 / 2026")
+    if k['ytd_prior_year_same_period'] > 0:
+        st.caption(
+            f"**{k['selected_year']} 1-{k['selected_month_num']} 月** "
+            f"{k['ytd_curr_year']/10000:,.0f} 萬 "
+            f"vs **{k['prior_year']} 同期** {k['ytd_prior_year_same_period']/10000:,.0f} 萬 "
+            f"· YoY **{k['ytd_yoy_calc']:+.1f}%**"
+        )
+    else:
+        st.caption(f"{k['selected_year']} YTD：NT$ {k['ytd_curr_year']/10000:,.0f} 萬")
     st.plotly_chart(ch.chart_cumulative_ytd(m["rev"]), use_container_width=True)
 
     st.markdown("---")
@@ -226,7 +237,7 @@ with tab3:
 
     st.markdown("---")
     st.markdown("### 📊 主要 OPEX 類別 trend")
-    st.caption("資料來源：Dashboard Row 28 (薪資) · Row 29 (軟體) · Row 36 (廣告) · Row 43 (租金) · Row 44 (交通) · 24 個月完整資料")
+    st.caption("資料來源：Dashboard Row 28 (薪資) · Row 29 (軟體) · Row 36 (廣告) · Row 43 (租金) · Row 44 (交通) · 27 個月完整資料")
     st.plotly_chart(
         ch.chart_opex_categories(m["months"], m["salary"], m["software"], m["marketing"], m["rent"], m["transport"]),
         use_container_width=True
