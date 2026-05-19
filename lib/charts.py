@@ -32,21 +32,34 @@ def chart_revenue_cogs_gp(months, rev, cogs, gp, gm, idx=None):
     return fig
 
 
-def chart_cumulative_ytd(rev_24):
-    cum_2024, cum_2025 = [], []
-    s24, s25 = 0, 0
+def chart_cumulative_ytd(rev):
+    """Multi-year cumulative YTD line chart. rev can be 24/27 months."""
+    cum_2024, cum_2025, cum_2026 = [], [], []
+    s24, s25, s26 = 0, 0, 0
     for i in range(12):
-        s24 += rev_24[i]; cum_2024.append(s24)
-        s25 += rev_24[i + 12]; cum_2025.append(s25)
+        if i < len(rev):
+            s24 += rev[i]; cum_2024.append(s24)
+        if i + 12 < len(rev):
+            s25 += rev[i + 12]; cum_2025.append(s25)
+        if i + 24 < len(rev):
+            s26 += rev[i + 24]; cum_2026.append(s26)
     labels = [f"{i}月" for i in range(1, 13)]
     fig = go.Figure()
-    fig.add_trace(go.Scatter(name="2024 累計", x=labels, y=cum_2024, mode="lines+markers",
+    fig.add_trace(go.Scatter(name="2024 累計", x=labels[:len(cum_2024)], y=cum_2024,
+                            mode="lines+markers",
                             line=dict(color=C["neutral"], width=2),
                             hovertemplate="2024 %{x}<br>累計：NT$ %{y:,.0f}<extra></extra>"))
-    fig.add_trace(go.Scatter(name="2025 累計", x=labels, y=cum_2025, mode="lines+markers",
-                            line=dict(color=C["primary"], width=3),
-                            fill="tonexty", fillcolor="rgba(37,99,235,0.08)",
+    fig.add_trace(go.Scatter(name="2025 累計", x=labels[:len(cum_2025)], y=cum_2025,
+                            mode="lines+markers",
+                            line=dict(color=C["primary"], width=2.5),
                             hovertemplate="2025 %{x}<br>累計：NT$ %{y:,.0f}<extra></extra>"))
+    if cum_2026:
+        fig.add_trace(go.Scatter(name=f"2026 累計（{len(cum_2026)} 個月）",
+                                x=labels[:len(cum_2026)], y=cum_2026,
+                                mode="lines+markers",
+                                line=dict(color=C["danger"], width=3),
+                                marker=dict(size=9),
+                                hovertemplate="2026 %{x}<br>累計：NT$ %{y:,.0f}<extra></extra>"))
     fig.update_layout(height=320, margin=dict(l=0, r=0, t=10, b=0),
                       legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
                       hovermode="x unified", yaxis_title="累計營業額 (NTD)")
@@ -57,7 +70,6 @@ def chart_est_vs_act_gp(months, est_gp, act_gp, est_gm, act_gm):
     fig = make_subplots(specs=[[{"secondary_y": True}]])
     fig.add_trace(go.Bar(name="EST 毛利", x=months, y=est_gp, marker_color=C["blue_l"],
                         hovertemplate="%{x}<br>EST GP：NT$ %{y:,.0f}<extra></extra>"))
-    # Only show ACT bars where data exists (non-zero)
     act_show = [v if v > 0 else None for v in act_gp]
     fig.add_trace(go.Bar(name="ACT 毛利", x=months, y=act_show, marker_color=C["success"],
                         hovertemplate="%{x}<br>ACT GP：NT$ %{y:,.0f}<extra></extra>"))
@@ -189,5 +201,5 @@ def chart_pivot_sales(months_pivot, sales, gp, gm):
                       legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
                       hovermode="x unified")
     fig.update_yaxes(title_text="NTD", secondary_y=False)
-    fig.update_yaxes(title_text="毛利率 %", secondary_y=True, range=[0, 50], rangemode="tozero")
+    fig.update_yaxes(title_text="毛利率 %", secondary_y=True, range=[0, 50])
     return fig
