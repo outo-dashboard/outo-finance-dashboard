@@ -1,4 +1,3 @@
-# v2 force rebuild
 """metrics.py - 計算真實資料的指標"""
 
 
@@ -17,8 +16,23 @@ def compute_metrics(data, month_idx=None):
     opex = d["opex_total"]
     ebit = [g - o for g, o in zip(gp, opex)]
 
+    # 全年累計（保留：給總覽用）
     ytd_2024 = sum(rev[0:12])
     ytd_2025 = sum(rev[12:24])
+
+    # 智慧 YTD：依當前選擇月份計算「選擇年 YTD」vs「前一年同期」
+    selected_year = months[idx][:4]
+    selected_month_num = int(months[idx][5:7])
+    sel_indices = [i for i, mm in enumerate(months)
+                   if mm.startswith(selected_year) and int(mm[5:7]) <= selected_month_num]
+    prior_year = str(int(selected_year) - 1)
+    prior_indices = [i for i, mm in enumerate(months)
+                     if mm.startswith(prior_year) and int(mm[5:7]) <= selected_month_num]
+    ytd_curr = sum(rev[i] for i in sel_indices)
+    ytd_prior = sum(rev[i] for i in prior_indices) if prior_indices else 0
+    ytd_yoy_calc = ((ytd_curr / ytd_prior - 1) * 100) if ytd_prior else 0
+
+    # 12 個月滾動（用最後 12 個月）
     avg_opex_12m = sum(opex[-12:]) / 12
     avg_revenue_12m = sum(rev[-12:]) / 12
     avg_gm_12m = sum(gm[-12:]) / 12
@@ -58,6 +72,12 @@ def compute_metrics(data, month_idx=None):
             "act_gm_latest": act_gm[idx],
             "mom_pct": mom,
             "yoy_pct": yoy,
+            "selected_year": selected_year,
+            "prior_year": prior_year,
+            "selected_month_num": selected_month_num,
+            "ytd_curr_year": ytd_curr,
+            "ytd_prior_year_same_period": ytd_prior,
+            "ytd_yoy_calc": ytd_yoy_calc,
             "ytd_2024": ytd_2024,
             "ytd_2025": ytd_2025,
             "ytd_yoy": ((ytd_2025/ytd_2024 - 1) * 100) if ytd_2024 else 0,
