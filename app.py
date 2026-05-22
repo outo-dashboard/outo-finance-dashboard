@@ -30,17 +30,6 @@ with st.sidebar:
     st.caption("🔗 [Outo Financial Dashboard Google Sheets](https://docs.google.com/spreadsheets/d/1-SQGXLw6ROXzIErBpGDXdJYRCOB6oAUAARDo6eeneJI/edit?gid=282172244#gid=282172244)")
 
     st.markdown("---")
-    st.markdown("## 📋 顯示內容")
-    st.caption(
-        "本儀表板只呈現 Google Sheets 上**完整且可驗證**的真實資料：\n\n"
-        "✓ 27 個月營收 / COGS / 毛利 / OPEX（2024-01 ~ 2026-03）\n\n"
-        "✓ 23 個月 Pivot Sales / GP / GM%\n\n"
-        "✓ 訂單級 AR 預期收款明細\n\n"
-        "✓ Top 10 產品 GM% 排名\n\n"
-        "因資料不足而**未納入**：月度現金部位 trend、月度 AP balance、Runway 模擬"
-    )
-
-    st.markdown("---")
     if st.button("🔄 重新載入資料", use_container_width=True):
         st.cache_data.clear()
         st.rerun()
@@ -60,7 +49,7 @@ m = compute_metrics(data, month_idx=idx)
 # ============================================================
 st.markdown(f"# 💰 Outo Financial Dashboard")
 st.caption(
-    f"**{selected_month}** · 27 個月 trend · 資料同步：{data.get('fetched_at', 'unknown')[:10]} · "
+    f"**{selected_month}** · 28 個月 trend · 資料同步：{data.get('fetched_at', 'unknown')[:10]} · "
     f"🟢 Google Sheets 真實資料"
 )
 
@@ -103,7 +92,7 @@ with tab1:
                  delta_color="off")
 
     st.markdown("---")
-    st.markdown("### 📈 月度營收 / 銷貨成本 / 毛利率（27 個月）")
+    st.markdown("### 📈 月度營收 / 銷貨成本 / 毛利率（28 個月）")
     st.caption("資料來源：Dashboard (Based on Trip End) Row 6 (REALIZED SALES) · Row 16 (ESTIMATED COST OF SALES) · Row 22 (EST. GROSS MARGIN)")
     st.plotly_chart(
         ch.chart_revenue_cogs_gp(m["months"], m["rev"], m["cogs"], m["gp"], m["gm"], idx=idx),
@@ -237,7 +226,7 @@ with tab3:
 
     st.markdown("---")
     st.markdown("### 📊 主要 OPEX 類別 trend")
-    st.caption("資料來源：Dashboard Row 28 (薪資) · Row 29 (軟體) · Row 36 (廣告) · Row 43 (租金) · Row 44 (交通) · 27 個月完整資料")
+    st.caption("資料來源：Dashboard Row 28 (薪資) · Row 29 (軟體) · Row 36 (廣告) · Row 43 (租金) · Row 44 (交通) · 28 個月完整資料")
     st.plotly_chart(
         ch.chart_opex_categories(m["months"], m["salary"], m["software"], m["marketing"], m["rent"], m["transport"]),
         use_container_width=True
@@ -272,10 +261,27 @@ with tab3:
         st.dataframe(opex_df, hide_index=True, use_container_width=True,
                     column_config={"金額 (NTD)": st.column_config.NumberColumn(format="$ %d")})
 
+    # ============================================================
+    # OPEX 前三大組成（依科目）
+    # ============================================================
+    st.markdown("---")
+    st.markdown(f"### 🔍 {selected_month} 各 OPEX 科目【前三大組成】")
+    st.caption("資料來源：信用卡 + 永豐銀行 + HSBC USD 對帳單交易明細，依 vendor 合併。100% = 該科目當月總額")
+    top3_data = data.get("opex_top3_by_month", {}).get(selected_month)
+    if not top3_data:
+        st.info(f"⚠️ {selected_month} 尚未提供前三大明細。目前僅 2026-04 有完整 vendor-level 拆分。")
+    else:
+        # Sort categories by total descending
+        cat_totals = {cat: sum(v[1] for v in items) for cat, items in top3_data.items()}
+        sorted_cats = sorted(cat_totals.items(), key=lambda x: -x[1])
+        top3_cols = st.columns(2)
+        for i, (cat, cat_total) in enumerate(sorted_cats):
+            items = top3_data[cat]
+            with top3_cols[i % 2]:
+                with st.container(border=True):
+                    st.markdown(f"**{cat}** · NT$ {cat_total:,}")
+                    for j, (vendor, amt) in enumerate(items, 1):
+                        pct = amt / cat_total * 100 if cat_total else 0
+                        emoji = ["🥇", "🥈", "🥉"][j-1] if j <= 3 else "•"
+                        st.markdown(f"{emoji} **{vendor}** — NT$ {amt:,} ({pct:.0f}%)")
 
-st.markdown("---")
-st.caption(
-    "⚠️ **誠實聲明**：本儀表板已**移除**「Runway 情境模擬」「臨時大額支出評估」「可動用資金細項追蹤」"
-    "三個原 KPI——因為 Google Sheets 上**缺少月度現金部位歷史**與**月度 AP 餘額歷史**資料，"
-    "做出來會是 speculative 而非 evidence-based。要恢復這些功能，需要在 Google Sheets 端先補建立每月底現金/AP 快照 row。"
-)
