@@ -4,11 +4,11 @@ from pathlib import Path
 import streamlit as st
 
 
-# 27 個月：2024-01 ~ 2026-03（含 Q1 2026）
+# 28 個月：2024-01 ~ 2026-04（含 Q1 2026）
 MONTHS_24 = (
     [f"2024-{i:02d}" for i in range(1, 13)]
     + [f"2025-{i:02d}" for i in range(1, 13)]
-    + [f"2026-{i:02d}" for i in range(1, 4)]
+    + [f"2026-{i:02d}" for i in range(1, 5)]
 )
 
 
