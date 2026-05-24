@@ -4,6 +4,7 @@ Outo Financial Dashboard - Evidence-Based Edition
 """
 import streamlit as st
 import pandas as pd
+import plotly.graph_objects as go
 
 from lib.data_loader import load_data, MONTHS_24
 from lib.metrics import compute_metrics
@@ -19,11 +20,47 @@ st.set_page_config(
 
 
 # ============================================================
+# 銀行水位預設值（sidebar 可即時改）
+# ============================================================
+BANK_DEFAULTS = [
+    {"id": "sinopac",       "label": "永豐銀行",    "entity": "探玩科技",  "balance": 1_314_864},
+    {"id": "cathay_united", "label": "國泰世華銀行", "entity": "奧拓旅行社", "balance": 6_000_000},
+    {"id": "outo_hk_bank",  "label": "奧拓香港銀行", "entity": "Outo HK",   "balance":   680_000},
+    {"id": "tappay",        "label": "TapPay",      "entity": "國聯",      "balance": 8_993_025},
+]
+
+
+# ============================================================
 # Sidebar
 # ============================================================
 with st.sidebar:
     st.markdown("## ⚙️ 設定")
     selected_month = st.selectbox("月份", options=MONTHS_24, index=len(MONTHS_24) - 1)
+
+    st.markdown("---")
+    st.markdown("## 💰 銀行水位")
+    st.caption("輸入當前餘額，Tab 4 Cash Runway 自動重算")
+    bank_balances = {}
+    for b in BANK_DEFAULTS:
+        bank_balances[b["id"]] = st.number_input(
+            f"{b['label']}（{b['entity']}）",
+            min_value=0, value=int(b["balance"]), step=10_000, format="%d",
+            key=f"bal_{b['id']}",
+        )
+
+    st.markdown("---")
+    st.markdown("## 📊 情境模擬")
+    st.caption("拉滑桿模擬 what-if，影響 Tab 4")
+    opex_adj = st.slider("OPEX 調整（%）", -50, 100, 0, 5,
+        help="例：凍結招募 → -15%；加開越南辦公室 → +30%")
+    revenue_adj = st.slider("Revenue 調整（%）", -80, 100, 0, 5,
+        help="例：旺季 → +20%；衰退 → -30%")
+    cash_injection = st.number_input("一次性現金注入（NT$）",
+        min_value=-50_000_000, max_value=100_000_000, value=0, step=500_000, format="%d",
+        help="例：信貸下來 +5,000,000")
+    extra_monthly_cost = st.number_input("額外每月固定支出（NT$）",
+        min_value=-2_000_000, max_value=5_000_000, value=0, step=50_000, format="%d",
+        help="例：新增辦公室租金 +200,000")
 
     st.markdown("---")
     st.markdown("## 📁 資料來源")
@@ -55,9 +92,14 @@ st.caption(
 
 
 # ============================================================
-# Tabs
+# Tabs (新增 Tab 4)
 # ============================================================
-tab1, tab2, tab3 = st.tabs(["📊 損益總覽", "🛒 訂單 & AR 分析", "🔥 成本 & OPEX 結構"])
+tab1, tab2, tab3, tab4 = st.tabs([
+    "📊 損益總覽",
+    "🛒 訂單 & AR 分析",
+    "🔥 成本 & OPEX 結構",
+    "💰 現金 & Burn Rate",
+])
 
 
 # ============================================================
@@ -171,7 +213,7 @@ with tab2:
     st.markdown("---")
     st.markdown("### 📋 AR 收款明細表")
     ar_df = pd.DataFrame(ar_valid)
-    ar_df["狀態"] = ar_df["month"].apply(lambda m: "🔴 已過期" if m <= current_month else "🟢 未來")
+    ar_df["狀態"] = ar_df["month"].apply(lambda mm: "🔴 已過期" if mm <= current_month else "🟢 未來")
     ar_df["平均單筆"] = (ar_df["amount"] / ar_df["count"]).astype(int)
     ar_df.columns = ["預期收款月份", "金額 (NTD)", "訂單數", "狀態", "平均單筆 (NTD)"]
     ar_df = ar_df[["預期收款月份", "狀態", "金額 (NTD)", "訂單數", "平均單筆 (NTD)"]]
@@ -261,9 +303,6 @@ with tab3:
         st.dataframe(opex_df, hide_index=True, use_container_width=True,
                     column_config={"金額 (NTD)": st.column_config.NumberColumn(format="$ %d")})
 
-    # ============================================================
-    # OPEX 前三大組成（依科目）
-    # ============================================================
     st.markdown("---")
     st.markdown(f"### 🔍 {selected_month} 各 OPEX 科目【前三大組成】")
     st.caption("資料來源：信用卡 + 永豐銀行 + HSBC USD 對帳單交易明細，依 vendor 合併。100% = 該科目當月總額")
@@ -271,7 +310,6 @@ with tab3:
     if not top3_data:
         st.info(f"⚠️ {selected_month} 尚未提供前三大明細。目前僅 2026-04 有完整 vendor-level 拆分。")
     else:
-        # Sort categories by total descending
         cat_totals = {cat: sum(v[1] for v in items) for cat, items in top3_data.items()}
         sorted_cats = sorted(cat_totals.items(), key=lambda x: -x[1])
         top3_cols = st.columns(2)
@@ -285,3 +323,130 @@ with tab3:
                         emoji = ["🥇", "🥈", "🥉"][j-1] if j <= 3 else "•"
                         st.markdown(f"{emoji} **{vendor}** — NT$ {amt:,} ({pct:.0f}%)")
 
+
+# ============================================================
+# TAB 4 — 現金 & Burn Rate × 情境模擬
+# ============================================================
+with tab4:
+    # 取 trailing 6 months
+    months_t6 = list(m["months"][-6:])
+    rev_t6    = list(m["rev"][-6:])
+    gp_t6     = list(m["gp"][-6:])
+    opex_t6   = list(m["opex"][-6:])
+
+    # 套用情境調整（Revenue & GP 等比例變動，假設毛利率不變）
+    rev_adj    = [r * (1 + revenue_adj / 100) for r in rev_t6]
+    gp_adj     = [g * (1 + revenue_adj / 100) for g in gp_t6]
+    opex_adj_arr = [o * (1 + opex_adj / 100) + extra_monthly_cost for o in opex_t6]
+    op_profit  = [g - o for g, o in zip(gp_adj, opex_adj_arr)]
+    net_burn   = [o - g for g, o in zip(gp_adj, opex_adj_arr)]
+    gross_burn = list(opex_adj_arr)
+
+    # 現金與 burn rate
+    total_cash = sum(bank_balances.values()) + cash_injection
+    avg_net_burn   = sum(net_burn) / len(net_burn)
+    avg_gross_burn = sum(gross_burn) / len(gross_burn)
+
+    scenario_active = (opex_adj != 0 or revenue_adj != 0 or cash_injection != 0 or extra_monthly_cost != 0)
+
+    def runway_str(cash, burn):
+        if burn <= 0:
+            return "∞ (淨賺中)"
+        return f"{cash / burn:.1f} 個月"
+
+    def runway_arrow(cash, burn):
+        if burn <= 0:
+            return "🟢 健康"
+        mo = cash / burn
+        if mo >= 12: return "🟢 健康"
+        if mo >= 6:  return "🟡 注意"
+        return "🔴 警戒"
+
+    # 情境提示條
+    if scenario_active:
+        parts = []
+        if revenue_adj: parts.append(f"Revenue {revenue_adj:+d}%")
+        if opex_adj:    parts.append(f"OPEX {opex_adj:+d}%")
+        if cash_injection: parts.append(f"現金注入 NT$ {cash_injection:+,}")
+        if extra_monthly_cost: parts.append(f"額外固定支出 NT$ {extra_monthly_cost:+,}/月")
+        st.info(f"⚙️ **情境啟用中：**{' · '.join(parts)}　（基準情境請把 sidebar 全部歸零）")
+
+    # 銀行水位
+    st.markdown(f"### 💰 銀行水位（trailing 6mo: {months_t6[0]} → {months_t6[-1]}）")
+    bcols = st.columns(len(BANK_DEFAULTS) + 1)
+    for i, b in enumerate(BANK_DEFAULTS):
+        bcols[i].metric(b["label"], f"NT$ {bank_balances[b['id']]:,}", b["entity"])
+    bcols[-1].metric("總可動用現金", f"NT$ {total_cash:,}",
+                     f"含注入 {cash_injection:+,}" if cash_injection else "4 個帳戶加總")
+
+    st.markdown("---")
+    st.markdown("### 🚀 Cash Runway（公司還能燒多久）")
+    rcols = st.columns(4)
+    rcols[0].metric("樂觀情境（Net Burn）", runway_str(total_cash, avg_net_burn),
+                    runway_arrow(total_cash, avg_net_burn))
+    rcols[1].metric("保守情境（Gross Burn）", runway_str(total_cash, avg_gross_burn),
+                    runway_arrow(total_cash, avg_gross_burn))
+    net_disp = f"NT$ {avg_net_burn:,.0f}" if avg_net_burn > 0 else f"NT$ {avg_net_burn:,.0f} (賺)"
+    rcols[2].metric("6mo 平均 Net Burn", net_disp, "OPEX − Gross Profit")
+    rcols[3].metric("6mo 平均 Gross Burn", f"NT$ {avg_gross_burn:,.0f}", "純 OPEX 月均")
+
+    st.markdown("---")
+    st.markdown("### 📉 Burn Rate 趨勢（Net vs. Gross，trailing 6mo）")
+    st.caption("Net Burn = OPEX − Gross Profit（為負代表淨賺）·　Gross Burn = 純 OPEX")
+    fig_burn = go.Figure()
+    fig_burn.add_trace(go.Scatter(
+        x=months_t6, y=net_burn, name="Net Burn",
+        mode="lines+markers", line=dict(color="#f0a830", width=3), marker=dict(size=10),
+        hovertemplate="<b>%{x}</b><br>Net Burn: NT$ %{y:,.0f}<extra></extra>",
+    ))
+    fig_burn.add_trace(go.Scatter(
+        x=months_t6, y=gross_burn, name="Gross Burn",
+        mode="lines+markers", line=dict(color="#58a6ff", width=3, dash="dot"), marker=dict(size=10),
+        hovertemplate="<b>%{x}</b><br>Gross Burn: NT$ %{y:,.0f}<extra></extra>",
+    ))
+    fig_burn.add_hline(y=0, line=dict(color="#6e7681", width=1, dash="dash"))
+    fig_burn.update_layout(
+        height=380, margin=dict(l=40, r=20, t=20, b=40),
+        xaxis=dict(title=None), yaxis=dict(title="NTD", tickformat=",.0f"),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        hovermode="x unified",
+    )
+    st.plotly_chart(fig_burn, use_container_width=True)
+
+    st.markdown("---")
+    st.markdown("### 💵 月度 Operating Profit（Revenue − COGS − OPEX）")
+    colors = ["#3fb950" if v > 0 else "#f85149" for v in op_profit]
+    fig_op = go.Figure()
+    fig_op.add_trace(go.Bar(
+        x=months_t6, y=op_profit, marker_color=colors,
+        text=[f"NT$ {v:,.0f}" for v in op_profit], textposition="outside",
+        hovertemplate="<b>%{x}</b><br>Operating Profit: NT$ %{y:,.0f}<extra></extra>",
+    ))
+    fig_op.add_hline(y=0, line=dict(color="#6e7681", width=1, dash="dash"))
+    fig_op.update_layout(
+        height=350, margin=dict(l=40, r=20, t=40, b=40), showlegend=False,
+        xaxis=dict(title=None), yaxis=dict(title="NTD", tickformat=",.0f"),
+    )
+    st.plotly_chart(fig_op, use_container_width=True)
+
+    st.markdown("---")
+    with st.expander("📋 月度明細（套用情境後的數字）"):
+        detail_df = pd.DataFrame({
+            "月份": months_t6,
+            "Revenue": [f"{v:,.0f}" for v in rev_adj],
+            "Gross Profit": [f"{v:,.0f}" for v in gp_adj],
+            "OPEX": [f"{v:,.0f}" for v in opex_adj_arr],
+            "Operating Profit": [f"{v:,.0f}" for v in op_profit],
+            "Net Burn": [f"{v:,.0f}" for v in net_burn],
+        })
+        st.dataframe(detail_df, use_container_width=True, hide_index=True)
+
+    st.markdown("---")
+    st.markdown("""
+    **計算口徑：**
+    - Net Burn = OPEX − Gross Profit（為負代表該月淨賺）
+    - Gross Burn = 純 OPEX（極端情境下每月固定成本）
+    - Runway 樂觀 = 總可動用現金 ÷ 6mo 平均 Net Burn
+    - Runway 保守 = 總可動用現金 ÷ 6mo 平均 Gross Burn
+    - 情境邏輯：Revenue 連動 GP 等比變動、OPEX 為比例 × + 固定金額、現金注入直接加總額
+    """)
