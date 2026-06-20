@@ -1,5 +1,9 @@
-# v27 force rebuild
-"""metrics.py - 計算真實資料的指標"""
+"""metrics.py - 計算真實資料的指標（容許未結帳月份 OPEX/EBIT = None）"""
+
+
+def _avg(xs):
+    xs = [x for x in xs if x is not None]
+    return sum(xs) / len(xs) if xs else 0
 
 
 def compute_metrics(data, month_idx=None):
@@ -15,7 +19,8 @@ def compute_metrics(data, month_idx=None):
     act_gp = d["act_gross_profit"]
     act_gm = d["act_gross_margin"]
     opex = d["opex_total"]
-    ebit = [g - o for g, o in zip(gp, opex)]
+    # 未結帳月份 opex 為 None → 該月 ebit 也為 None
+    ebit = [None if (o is None or g is None) else g - o for g, o in zip(gp, opex)]
 
     # 全年累計（保留：給總覽用）
     ytd_2024 = sum(rev[0:12])
@@ -33,17 +38,26 @@ def compute_metrics(data, month_idx=None):
     ytd_prior = sum(rev[i] for i in prior_indices) if prior_indices else 0
     ytd_yoy_calc = ((ytd_curr / ytd_prior - 1) * 100) if ytd_prior else 0
 
-    # 12 個月滾動（用最後 12 個月）
-    avg_opex_12m = sum(opex[-12:]) / 12
+    # 12 個月滾動：OPEX/EBIT 只取最近 12 個「已結帳」月份（None 跳過）
+    opex_booked = [o for o in opex if o is not None]
+    ebit_booked = [e for e in ebit if e is not None]
+    avg_opex_12m = _avg(opex_booked[-12:])
     avg_revenue_12m = sum(rev[-12:]) / 12
     avg_gm_12m = sum(gm[-12:]) / 12
+    ebit_avg_12m = _avg(ebit_booked[-12:])
 
     mom = ((rev[idx] - rev[idx-1]) / rev[idx-1] * 100) if idx > 0 and rev[idx-1] else 0
     yoy = ((rev[idx] - rev[idx-12]) / rev[idx-12] * 100) if idx >= 12 and rev[idx-12] else 0
 
-    rolling_3m = [sum(opex[max(0, i-2):i+1]) / min(3, i+1) for i in range(len(opex))]
+    def _roll(i):
+        if opex[i] is None:
+            return None
+        w = [o for o in opex[max(0, i-2):i+1] if o is not None]
+        return sum(w) / len(w) if w else None
+    rolling_3m = [_roll(i) for i in range(len(opex))]
     rev_rolling_3m = [sum(rev[max(0, i-2):i+1]) / min(3, i+1) for i in range(len(rev))]
-    opex_pct = [(opex[i] / rev[i] * 100) if rev[i] else 0 for i in range(len(rev))]
+    opex_pct = [None if opex[i] is None else ((opex[i] / rev[i] * 100) if rev[i] else 0)
+                for i in range(len(rev))]
 
     return {
         "months": months,
@@ -85,6 +99,6 @@ def compute_metrics(data, month_idx=None):
             "avg_opex_12m": avg_opex_12m,
             "avg_revenue_12m": avg_revenue_12m,
             "avg_gm_12m": avg_gm_12m,
-            "ebit_avg_12m": sum(ebit[-12:]) / 12,
+            "ebit_avg_12m": ebit_avg_12m,
         }
     }
