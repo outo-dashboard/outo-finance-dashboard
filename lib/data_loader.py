@@ -4,11 +4,12 @@ from pathlib import Path
 import streamlit as st
 
 
-# 28 個月：2024-01 ~ 2026-04（含 Q1 2026）
+# 29 個月：2024-01 ~ 2026-05
+# 2026-05 的營收/銷貨成本/毛利已結帳；OPEX/EBIT 未結帳（snapshot 中為 null）
 MONTHS_24 = (
     [f"2024-{i:02d}" for i in range(1, 13)]
     + [f"2025-{i:02d}" for i in range(1, 13)]
-    + [f"2026-{i:02d}" for i in range(1, 5)]
+    + [f"2026-{i:02d}" for i in range(1, 6)]
 )
 
 
