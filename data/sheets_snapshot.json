@@ -922,5 +922,92 @@
         ]
       ]
     }
+  },
+  "cash_expense_breakdown_by_month": {
+    "2026-05": {
+      "sources_note": "永豐＋國泰卡＋香港HSBC",
+      "fx_note": "HSBC匯率 31.72",
+      "cogs": [
+        {
+          "category": "出團成本",
+          "amount": 102646
+        }
+      ],
+      "opex": [
+        {
+          "category": "薪資支出",
+          "amount": 786844
+        },
+        {
+          "category": "廣告行銷",
+          "amount": 273244
+        },
+        {
+          "category": "軟體服務費",
+          "amount": 103764
+        },
+        {
+          "category": "產品開發",
+          "amount": 44720
+        },
+        {
+          "category": "租金",
+          "amount": 40766
+        },
+        {
+          "category": "Leadership",
+          "amount": 23678
+        },
+        {
+          "category": "其他費用",
+          "amount": 20838
+        },
+        {
+          "category": "手續費",
+          "amount": 7488
+        },
+        {
+          "category": "職工福利",
+          "amount": 6515
+        },
+        {
+          "category": "團隊支出",
+          "amount": 5378
+        },
+        {
+          "category": "伙食費",
+          "amount": 4510
+        },
+        {
+          "category": "交通費",
+          "amount": 4355
+        },
+        {
+          "category": "雜費",
+          "amount": 2210
+        },
+        {
+          "category": "HSBC手續費",
+          "amount": 1521
+        },
+        {
+          "category": "郵電費",
+          "amount": 1099
+        }
+      ],
+      "cogs_subtotal": 102646,
+      "opex_subtotal": 1326930,
+      "total": 1429576,
+      "non_operating": [
+        {
+          "category": "營所稅",
+          "amount": 156615
+        },
+        {
+          "category": "HSBC匯出（待確認）",
+          "amount": 198250
+        }
+      ]
+    }
   }
 }
