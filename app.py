@@ -31,6 +31,30 @@ BANK_DEFAULTS = [
 
 
 # ============================================================
+# 2026-05 OPEX 明細（三邊合併：永豐＋國泰卡＋HSBC）
+# 來源：2026-05 合併費用報表 E 欄「金額組成」備註（leadership 精簡版，僅列非零 OPEX 科目）
+# 金額已用三邊現金流出總額 1,784,441 交叉對帳驗證（永豐 1,042,828 + 國泰 524,975 + HSBC 216,638）
+# ============================================================
+OPEX_MAY_2026 = [
+    ("薪資支出",     786_844, "永豐 薪資 647,657 ＋ 勞健保 139,187"),
+    ("廣告行銷",     273_244, "Google Ads 268,844 ＋ 廣告投放顧問 2,015 ＋ LINE 官方帳號 1,470 ＋ 浩威設計 915"),
+    ("軟體服務費",   103_764, "Anthropic/Claude 65,577 ＋ Google Workspace 15,898 ＋ Lark 9,162 ＋ Proactor 7,277 ＋ 易得雲端 3,339 ＋ Klaviyo 1,424 ＋ Twilio 633 ＋ Make 336 ＋ Wispr 250 ＋ Google Cloud 50"),
+    ("產品開發",      44_720, "永豐 44,720（1,515×16 筆 ＋ 13,965 ＋ 6,515）"),
+    ("租金",          40_766, "永豐 40,766（旅行社公會年費 ＋ 租金）"),
+    ("Leadership",    23_678, "教練費 Coaching（RYBO CHEN）USD 750×3，含一筆退款沖銷"),
+    ("其他費用",      20_838, "Flywire*Samanvaya 15,371 ＋ 思泊客國際 5,467"),
+    ("手續費",         7_488, "國外交易／退貨手續費 84 筆（刷國外約 1.5%）"),
+    ("職工福利",       6_515, "國泰健康管理顧問（員工健檢）"),
+    ("團隊支出",       5_378, "NVIDIA GTC 研討會門票 USD 85×2"),
+    ("伙食費",         4_510, "台灣餐飲 16 筆"),
+    ("交通費",         4_355, "台灣 Uber／計程車／TaxiGo"),
+    ("雜費",           2_210, "MOMO 電商採購"),
+    ("HSBC 手續費",    1_521, "HSBC 電匯手續費 USD 47.96"),
+    ("郵電費",         1_099, "中華電信"),
+]
+
+
+# ============================================================
 # Sidebar
 # ============================================================
 with st.sidebar:
@@ -79,7 +103,6 @@ if data is None:
 
 idx = MONTHS_24.index(selected_month) if selected_month in MONTHS_24 else len(MONTHS_24) - 1
 m = compute_metrics(data, month_idx=idx)
-opex_booked = m["opex"][idx] is not None   # 當月 OPEX 是否已結帳
 
 
 # ============================================================
@@ -87,8 +110,8 @@ opex_booked = m["opex"][idx] is not None   # 當月 OPEX 是否已結帳
 # ============================================================
 st.markdown(f"# 💰 Outo Financial Dashboard")
 st.caption(
-    f"**{selected_month}** · 29 個月 trend · 資料同步：{data.get('fetched_at', 'unknown')[:10]} · "
-    f"🟢 Google Sheets 真實資料 · ⚠️ 2026-05 OPEX/EBIT 未結帳（待月底入帳）"
+    f"**{selected_month}** · 28 個月 trend · 資料同步：{data.get('fetched_at', 'unknown')[:10]} · "
+    f"🟢 Google Sheets 真實資料"
 )
 
 
@@ -125,21 +148,17 @@ with tab1:
                  else f"NT$ {k['ytd_curr_year']/10000:.0f} 萬",
                  f"vs {k['prior_year']} 同期：{k['ytd_yoy_calc']:+.1f}%"
                  if k['ytd_prior_year_same_period'] > 0 else "（無同期資料）")
-    if opex_booked:
-        r2[1].metric("月 OPEX",
-                     f"NT$ {k['opex_latest']/10000:.0f} 萬",
-                     f"佔營收 {(k['opex_latest']/k['rev_latest']*100):.1f}%" if k['rev_latest'] else "—",
-                     delta_color="inverse")
-        r2[2].metric("月 EBIT",
-                     f"NT$ {k['ebit_latest']/10000:+.0f} 萬",
-                     "毛利 − OPEX",
-                     delta_color="off")
-    else:
-        r2[1].metric("月 OPEX", "— 未結帳", f"{selected_month} OPEX 待入帳", delta_color="off")
-        r2[2].metric("月 EBIT", "— 未結帳", "OPEX 未入帳，無法計算", delta_color="off")
+    r2[1].metric("月 OPEX",
+                 f"NT$ {k['opex_latest']/10000:.0f} 萬",
+                 f"佔營收 {(k['opex_latest']/k['rev_latest']*100):.1f}%" if k['rev_latest'] else "—",
+                 delta_color="inverse")
+    r2[2].metric("月 EBIT",
+                 f"NT$ {k['ebit_latest']/10000:+.0f} 萬",
+                 "毛利 − OPEX",
+                 delta_color="off")
 
     st.markdown("---")
-    st.markdown("### 📈 月度營收 / 銷貨成本 / 毛利率（29 個月）")
+    st.markdown("### 📈 月度營收 / 銷貨成本 / 毛利率（28 個月）")
     st.caption("資料來源：Dashboard (Based on Trip End) Row 6 (REALIZED SALES) · Row 16 (ESTIMATED COST OF SALES) · Row 22 (EST. GROSS MARGIN)")
     st.plotly_chart(
         ch.chart_revenue_cogs_gp(m["months"], m["rev"], m["cogs"], m["gp"], m["gm"], idx=idx),
@@ -169,23 +188,17 @@ with tab1:
 
     st.markdown("---")
     st.markdown("### 📦 本月損益表")
-    if not opex_booked:
-        st.caption(f"⚠️ {selected_month} 的 OPEX / EBIT 尚未結帳（待月底信用卡＋銀行對帳單入帳），下表以「未結帳」標示。")
-    _opx = m["opex"][idx]
-    _eb = m["ebit"][idx]
     pnl_df = pd.DataFrame({
         "項目": ["營業收入", "  銷貨成本 (COGS)", "毛利 (EST)", "  營業費用 (OPEX)", "EBIT"],
         "金額 (NTD)": [
-            m["rev"][idx], -m["cogs"][idx], m["gp"][idx],
-            (None if _opx is None else -_opx),
-            (None if _eb is None else _eb),
+            m["rev"][idx], -m["cogs"][idx], m["gp"][idx], -m["opex"][idx], m["ebit"][idx],
         ],
         "佔營收 %": [
             "100.0%",
             f"{-m['cogs'][idx]/m['rev'][idx]*100:.1f}%" if m['rev'][idx] else "—",
             f"{m['gm'][idx]:.1f}%",
-            ("未結帳" if _opx is None else (f"{-_opx/m['rev'][idx]*100:.1f}%" if m['rev'][idx] else "—")),
-            ("未結帳" if _eb is None else (f"{_eb/m['rev'][idx]*100:.1f}%" if m['rev'][idx] else "—")),
+            f"{-m['opex'][idx]/m['rev'][idx]*100:.1f}%" if m['rev'][idx] else "—",
+            f"{m['ebit'][idx]/m['rev'][idx]*100:.1f}%" if m['rev'][idx] else "—",
         ],
     })
     st.dataframe(pnl_df, hide_index=True, use_container_width=True,
@@ -244,8 +257,8 @@ with tab2:
         st.info("無產品資料")
 
     st.markdown("---")
-    st.markdown("### 📈 訂單成交 Pivot trend（24 個月）")
-    st.caption("資料來源：Pivot Table 1（含預訂與已完成，Based on Trip Start）· 2024-06 → 2026-05")
+    st.markdown("### 📈 訂單成交 Pivot trend（23 個月）")
+    st.caption("資料來源：Pivot Table 1（含預訂與已完成）· 2024-06 → 2026-04")
     piv = data.get("pivot", {})
     if piv.get("sales"):
         st.plotly_chart(
@@ -261,44 +274,34 @@ with tab3:
     k = m["kpi"]
     cols = st.columns(5)
     cols[0].metric("12 月均 OPEX", f"NT$ {k['avg_opex_12m']/10000:.0f} 萬",
-                   "近 12 個已結帳月平均")
+                   "近 12 個月平均")
     cols[1].metric("12 月均營收", f"NT$ {k['avg_revenue_12m']/10000:.0f} 萬",
                    "Run-rate baseline")
     cols[2].metric("12 月均毛利率", f"{k['avg_gm_12m']:.1f}%",
                    "EST GM avg")
-    if opex_booked:
-        cols[3].metric("OPEX 佔營收", f"{(k['opex_latest']/k['rev_latest']*100):.1f}%" if k['rev_latest'] else "—",
-                       f"{selected_month}", delta_color="off")
-    else:
-        cols[3].metric("OPEX 佔營收", "— 未結帳", f"{selected_month}", delta_color="off")
+    cols[3].metric("OPEX 佔營收", f"{(k['opex_latest']/k['rev_latest']*100):.1f}%" if k['rev_latest'] else "—",
+                   f"{selected_month}", delta_color="off")
     cols[4].metric("月均 EBIT", f"NT$ {k['ebit_avg_12m']/10000:+.0f} 萬",
-                   "近 12 個已結帳月")
-
-    # 只取「已結帳」月份畫 OPEX 圖（未結帳月份不畫，避免誤導）
-    bk = [i for i in range(len(m["months"])) if m["opex"][i] is not None]
-    om = [m["months"][i] for i in bk]
-    last_booked = om[-1] if om else "—"
+                   "近 12 個月")
 
     st.markdown("---")
     st.markdown("### 🔥 月度 OPEX 總額 trend")
-    st.caption(f"資料來源：Dashboard Row 58 (OPERATING EXPENSES 合計) · 含 3 個月滾動平均 · 至 {last_booked}（之後月份未結帳）")
-    st.plotly_chart(ch.chart_opex_trend(om, [m["opex"][i] for i in bk], [m["rolling_3m_opex"][i] for i in bk]),
+    st.caption("資料來源：Dashboard Row 58 (OPERATING EXPENSES 合計) · 含 3 個月滾動平均")
+    st.plotly_chart(ch.chart_opex_trend(m["months"], m["opex"], m["rolling_3m_opex"]),
                    use_container_width=True)
 
     st.markdown("---")
     st.markdown("### 📊 主要 OPEX 類別 trend")
-    st.caption(f"資料來源：Dashboard Row 28 (薪資) · Row 29 (軟體) · Row 36 (廣告) · Row 43 (租金) · Row 44 (交通) · 至 {last_booked}")
+    st.caption("資料來源：Dashboard Row 28 (薪資) · Row 29 (軟體) · Row 36 (廣告) · Row 43 (租金) · Row 44 (交通) · 28 個月完整資料")
     st.plotly_chart(
-        ch.chart_opex_categories(om, [m["salary"][i] for i in bk], [m["software"][i] for i in bk],
-                                 [m["marketing"][i] for i in bk], [m["rent"][i] for i in bk],
-                                 [m["transport"][i] for i in bk]),
+        ch.chart_opex_categories(m["months"], m["salary"], m["software"], m["marketing"], m["rent"], m["transport"]),
         use_container_width=True
     )
 
     st.markdown("---")
     st.markdown("### 📉 OPEX 佔營收比例（效率指標）")
     st.caption("月度 OPEX / 月度營收。低於 50% 為健康，高於 50% 代表營收波動或費用偏高")
-    st.plotly_chart(ch.chart_opex_pct_revenue(om, [m["opex_pct_rev"][i] for i in bk]),
+    st.plotly_chart(ch.chart_opex_pct_revenue(m["months"], m["opex_pct_rev"]),
                    use_container_width=True)
 
     st.markdown("---")
@@ -312,20 +315,17 @@ with tab3:
         )
     with col_b:
         st.markdown(f"### 📋 {selected_month} OPEX 細項")
-        if not opex_booked:
-            st.info(f"⚠️ {selected_month} OPEX 尚未結帳，待月底信用卡＋永豐＋HSBC 對帳單入帳後補上。")
-        else:
-            opex_df = pd.DataFrame({
-                "類別": ["薪資", "廣告行銷", "軟體服務", "租金", "交通", "其他"],
-                "金額 (NTD)": [
-                    m["salary"][idx], m["marketing"][idx], m["software"][idx],
-                    m["rent"][idx], m["transport"][idx],
-                    m["opex"][idx] - (m["salary"][idx] + m["marketing"][idx] + m["software"][idx] + m["rent"][idx] + m["transport"][idx]),
-                ],
-            })
-            opex_df["佔 OPEX %"] = (opex_df["金額 (NTD)"] / m["opex"][idx] * 100).round(1).astype(str) + "%"
-            st.dataframe(opex_df, hide_index=True, use_container_width=True,
-                        column_config={"金額 (NTD)": st.column_config.NumberColumn(format="$ %d")})
+        opex_df = pd.DataFrame({
+            "類別": ["薪資", "廣告行銷", "軟體服務", "租金", "交通", "其他"],
+            "金額 (NTD)": [
+                m["salary"][idx], m["marketing"][idx], m["software"][idx],
+                m["rent"][idx], m["transport"][idx],
+                m["opex"][idx] - (m["salary"][idx] + m["marketing"][idx] + m["software"][idx] + m["rent"][idx] + m["transport"][idx]),
+            ],
+        })
+        opex_df["佔 OPEX %"] = (opex_df["金額 (NTD)"] / m["opex"][idx] * 100).round(1).astype(str) + "%"
+        st.dataframe(opex_df, hide_index=True, use_container_width=True,
+                    column_config={"金額 (NTD)": st.column_config.NumberColumn(format="$ %d")})
 
     st.markdown("---")
     st.markdown(f"### 🔍 {selected_month} 各 OPEX 科目【前三大組成】")
@@ -347,18 +347,69 @@ with tab3:
                         emoji = ["🥇", "🥈", "🥉"][j-1] if j <= 3 else "•"
                         st.markdown(f"{emoji} **{vendor}** — NT$ {amt:,} ({pct:.0f}%)")
 
+    # ============================================================
+    # 2026-05 OPEX 明細（三邊合併，leadership 精簡版）
+    # ============================================================
+    st.markdown("---")
+    st.subheader("🧾 2026-05 OPEX 明細（三邊合併：永豐＋國泰卡＋HSBC）", anchor="2026-05-opex")
+    st.caption(
+        "資料來源：2026-05 合併費用報表（永豐＋國泰信用卡＋香港 HSBC 對帳單）· 單位 TWD · HSBC 匯率 31.72 · "
+        "僅列營業費用（OPEX），不含出團成本、營所稅、待確認匯出"
+    )
+
+    may_total = sum(x[1] for x in OPEX_MAY_2026)
+    top_cat, top_amt, _ = OPEX_MAY_2026[0]
+    top3_amt = sum(x[1] for x in OPEX_MAY_2026[:3])
+
+    mcols = st.columns(4)
+    mcols[0].metric("2026-05 OPEX 合計", f"NT$ {may_total/10000:,.0f} 萬", f"NT$ {may_total:,}")
+    mcols[1].metric("最大單項", top_cat, f"NT$ {top_amt:,}（{top_amt/may_total*100:.0f}%）")
+    mcols[2].metric("前三大合計", f"{top3_amt/may_total*100:.0f}%", "薪資＋廣告＋軟體")
+    mcols[3].metric("費用科目數", f"{len(OPEX_MAY_2026)} 項", "非零 OPEX 科目")
+
+    st.markdown("##### 各科目金額（由大到小）")
+    may_sorted = sorted(OPEX_MAY_2026, key=lambda x: x[1])  # 升冪：橫向長條由下往上遞增
+    fig_may = go.Figure()
+    fig_may.add_trace(go.Bar(
+        x=[x[1] for x in may_sorted],
+        y=[x[0] for x in may_sorted],
+        orientation="h",
+        text=[f"NT$ {x[1]:,}" for x in may_sorted],
+        textposition="auto",
+        marker_color="#58a6ff",
+        hovertemplate="<b>%{y}</b><br>NT$ %{x:,}<extra></extra>",
+    ))
+    fig_may.update_layout(
+        height=540, margin=dict(l=10, r=30, t=10, b=30),
+        xaxis=dict(title="NTD", tickformat=",.0f"),
+        yaxis=dict(title=None),
+    )
+    st.plotly_chart(fig_may, use_container_width=True)
+
+    st.markdown("##### 明細表（含金額組成備註）")
+    may_df = pd.DataFrame(
+        [(cat, amt, f"{amt/may_total*100:.1f}%", note) for cat, amt, note in OPEX_MAY_2026],
+        columns=["科目", "金額 (TWD)", "佔 OPEX %", "金額組成（備註）"],
+    )
+    st.dataframe(
+        may_df, hide_index=True, use_container_width=True,
+        column_config={
+            "金額 (TWD)": st.column_config.NumberColumn(format="$ %d"),
+            "金額組成（備註）": st.column_config.TextColumn(width="large"),
+        },
+    )
+    st.caption(f"OPEX 合計：NT$ {may_total:,}（三邊現金流出總額 1,784,441，另含出團成本 102,646、營所稅 156,615、待確認匯出 198,250，未列於本表）")
+
 
 # ============================================================
 # TAB 4 — 現金 & Burn Rate × 情境模擬
 # ============================================================
 with tab4:
-    # 取最近 6 個「已結帳」月份（OPEX 未結帳的月份不納入 burn 計算）
-    booked = [i for i in range(len(m["months"])) if m["opex"][i] is not None]
-    t6 = booked[-6:]
-    months_t6 = [m["months"][i] for i in t6]
-    rev_t6    = [m["rev"][i] for i in t6]
-    gp_t6     = [m["gp"][i] for i in t6]
-    opex_t6   = [m["opex"][i] for i in t6]
+    # 取 trailing 6 months
+    months_t6 = list(m["months"][-6:])
+    rev_t6    = list(m["rev"][-6:])
+    gp_t6     = list(m["gp"][-6:])
+    opex_t6   = list(m["opex"][-6:])
 
     # 套用情境調整（Revenue & GP 等比例變動，假設毛利率不變）
     rev_adj    = [r * (1 + revenue_adj / 100) for r in rev_t6]
@@ -399,7 +450,6 @@ with tab4:
 
     # 銀行水位
     st.markdown(f"### 💰 銀行水位（trailing 6mo: {months_t6[0]} → {months_t6[-1]}）")
-    st.caption("Burn rate 以最近 6 個「已結帳」月份計算；2026-05 OPEX 未結帳，暫不納入。")
     bcols = st.columns(len(BANK_DEFAULTS) + 1)
     for i, b in enumerate(BANK_DEFAULTS):
         bcols[i].metric(b["label"], f"NT$ {bank_balances[b['id']]:,}", b["entity"])
@@ -475,6 +525,5 @@ with tab4:
     - Gross Burn = 純 OPEX（極端情境下每月固定成本）
     - Runway 樂觀 = 總可動用現金 ÷ 6mo 平均 Net Burn
     - Runway 保守 = 總可動用現金 ÷ 6mo 平均 Gross Burn
-    - trailing 6mo 只取「OPEX 已結帳」月份；2026-05 OPEX 未結帳故不納入
     - 情境邏輯：Revenue 連動 GP 等比變動、OPEX 為比例 × + 固定金額、現金注入直接加總額
     """)
